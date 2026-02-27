@@ -22,15 +22,15 @@ Running `hostname` without arguments shows all three. Passing a new name sets al
 
 ## Install
 
-Requires Swift 6.0+ and macOS 14+. Depends on [swift-cli-core](https://github.com/ansilithic/swift-cli-core) and [swift-argument-parser](https://github.com/apple/swift-argument-parser).
-
 ```sh
-git clone https://github.com/ansilithic/hostname.git
-cd hostname
-make build && make install
+brew install ansilithic/tap/hostname
 ```
 
-The binary installs to `/usr/local/bin/hostname`.
+Or build from source (requires Xcode and macOS 14+):
+
+```sh
+make build && make install
+```
 
 ## Usage
 
