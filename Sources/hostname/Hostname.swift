@@ -65,21 +65,31 @@ struct Hostname: ParsableCommand {
         print(styled("This will update all three settings.", .dim))
         print()
 
+        guard let passPtr = getpass("Password: ") else {
+            Output.error("Failed to read password")
+            CLIExitCode.error.exit()
+        }
+        let password = String(cString: passPtr)
+
+        // Validate password with a no-op before doing real work
+        guard sudoExec("true", password: password) == 0 else {
+            Output.error("Incorrect password")
+            CLIExitCode.error.exit()
+        }
+
         let commands = [
-            "sudo scutil --set HostName \(hostname)",
-            "sudo scutil --set LocalHostName \(hostname)",
-            "sudo scutil --set ComputerName \(hostname)"
+            "scutil --set HostName \(hostname)",
+            "scutil --set LocalHostName \(hostname)",
+            "scutil --set ComputerName \(hostname)",
+            "dscacheutil -flushcache"
         ]
 
         for cmd in commands {
-            let (_, exitCode) = shellExec(cmd)
-            if exitCode != 0 {
+            if sudoExec(cmd, password: password) != 0 {
                 Output.error("Failed to execute: \(cmd)")
                 CLIExitCode.error.exit()
             }
         }
-
-        _ = shellExec("dscacheutil -flushcache")
 
         Output.success("Hostname changed to: \(hostname)")
         print(styled("You may need to restart Terminal for the prompt to update.", .dim))
@@ -105,24 +115,25 @@ struct Hostname: ParsableCommand {
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
-    private func shellExec(_ command: String) -> (output: String, exitCode: Int32) {
+    private func sudoExec(_ command: String, password: String) -> Int32 {
         let task = Process()
-        let pipe = Pipe()
-        task.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        task.arguments = ["-c", command]
-        task.standardOutput = pipe
-        task.standardError = pipe
-        task.standardInput = FileHandle.standardInput
+        let stdinPipe = Pipe()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
+        task.arguments = ["-kS", "/bin/zsh", "-c", command]
+        task.standardInput = stdinPipe
+        task.standardOutput = nil
+        task.standardError = FileHandle.nullDevice
 
         do {
             try task.run()
-            task.waitUntilExit()
         } catch {
-            return ("", 1)
+            return 1
         }
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return (output, task.terminationStatus)
+        stdinPipe.fileHandleForWriting.write(Data("\(password)\n".utf8))
+        stdinPipe.fileHandleForWriting.closeFile()
+        task.waitUntilExit()
+
+        return task.terminationStatus
     }
 }
