@@ -112,7 +112,7 @@ struct Hostname: ParsableCommand {
         task.arguments = ["-c", command]
         task.standardOutput = pipe
         task.standardError = pipe
-        task.standardInput = nil
+        task.standardInput = FileHandle.standardInput
 
         do {
             try task.run()
